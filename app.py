@@ -82,6 +82,17 @@ h1, h2, h3 { font-family: 'Syne', sans-serif !important; }
     border-radius: 4px;
 }
 
+.derived-box {
+    background: #0f1f35;
+    border: 1px solid #1e3a5f;
+    border-radius: 10px;
+    padding: 0.8rem 1.2rem;
+    font-size: 0.82rem;
+    color: #6b7fa3;
+    margin-top: 0.5rem;
+}
+.derived-box span { color: #60a5fa; font-weight: 500; }
+
 .stButton > button {
     width: 100%;
     background: linear-gradient(135deg, #2563eb, #7c3aed);
@@ -144,6 +155,7 @@ h1, h2, h3 { font-family: 'Syne', sans-serif !important; }
 .feature-summary td { padding: 4px 8px; }
 .feature-summary td:first-child { color: #9ca3af; }
 .feature-summary td:last-child  { color: #e8eaf0; font-weight: 500; text-align: right; }
+.feature-summary .derived { color: #60a5fa !important; }
 
 @keyframes fadeInUp {
     from { opacity: 0; transform: translateY(20px); }
@@ -183,9 +195,9 @@ missing = [f for f, p in [("model.pkl", model_path), ("scaler.pkl", scaler_path)
 
 if missing:
     st.markdown(
-        f'<div class="info-box">📁 <strong>Missing: '
+        '<div class="info-box">📁 <strong>Missing: '
         + ", ".join(f"<code>{f}</code>" for f in missing)
-        + "</strong><br>Export from Colab (see below) and upload or place in the app folder.</div>",
+        + "</strong><br>Export from Colab and upload below, or place in the app folder.</div>",
         unsafe_allow_html=True,
     )
     with st.expander("📋 Export from Google Colab"):
@@ -215,10 +227,19 @@ else:
 
 
 # ─────────────────────────────────────────────
-# INPUTS  — exactly 8 features from your notebook:
-#   no_of_dependents, education, self_employed,
-#   income_annum, loan_amount, loan_term,
-#   cibil_score, total_assets
+# INPUTS
+#
+# Exact 10 features the scaler was trained on:
+#  1. no_of_dependents
+#  2. education
+#  3. self_employed
+#  4. income_annum
+#  5. loan_amount
+#  6. loan_term
+#  7. cibil_score
+#  8. total_assets          = bank + commercial + residential + luxury
+#  9. loan_income_ratio     = loan_amount / income_annum  (auto-computed)
+# 10. emi                   = loan_amount / loan_term     (auto-computed)
 # ─────────────────────────────────────────────
 
 st.markdown('<div class="section-title">Personal Details</div>', unsafe_allow_html=True)
@@ -235,52 +256,65 @@ st.markdown('<div class="section-title">Loan Details</div>', unsafe_allow_html=T
 
 col4, col5, col6 = st.columns(3)
 with col4:
-    income_annum = st.number_input("Annual Income (₹)", min_value=0,
+    income_annum = st.number_input("Annual Income (₹)", min_value=1,
                                     max_value=10_000_000, value=500_000, step=10_000)
 with col5:
-    loan_amount = st.number_input("Loan Amount (₹)", min_value=0,
+    loan_amount = st.number_input("Loan Amount (₹)", min_value=1,
                                    max_value=50_000_000, value=1_000_000, step=50_000)
 with col6:
-    loan_term = st.number_input("Loan Term (months)", min_value=2,
+    loan_term = st.number_input("Loan Term (months)", min_value=1,
                                  max_value=360, value=12, step=1)
 
-st.markdown('<div class="section-title">Credit Score & Assets</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">Credit Score</div>', unsafe_allow_html=True)
 
 cibil_score = st.slider("CIBIL Score", min_value=300, max_value=900, value=650,
                          help="300 = poor  ·  900 = excellent")
 
-col7, col8, col9, col10 = st.columns(4)
-with col7:
-    bank_asset  = st.number_input("Bank Assets (₹)",        min_value=0, value=100_000, step=10_000)
-with col8:
-    commercial  = st.number_input("Commercial Assets (₹)",  min_value=0, value=0,       step=10_000)
-with col9:
-    residential = st.number_input("Residential Assets (₹)", min_value=0, value=500_000, step=10_000)
-with col10:
-    luxury      = st.number_input("Luxury Assets (₹)",      min_value=0, value=0,       step=10_000)
+st.markdown('<div class="section-title">Assets (₹)</div>', unsafe_allow_html=True)
 
-total_assets = bank_asset + commercial + residential + luxury
-st.caption(f"🏦 Computed Total Assets: **₹{total_assets:,.0f}**")
+col7, col8 = st.columns(2)
+with col7:
+    bank_asset_value         = st.number_input("Bank Assets (₹)",          min_value=0, value=100_000, step=10_000)
+    commercial_assets_value  = st.number_input("Commercial Assets (₹)",    min_value=0, value=0,       step=10_000)
+with col8:
+    residential_assets_value = st.number_input("Residential Assets (₹)",   min_value=0, value=500_000, step=10_000)
+    luxury_assets_value      = st.number_input("Luxury Assets (₹)",        min_value=0, value=0,       step=10_000)
+
+# ── Engineered features (computed automatically, matching notebook) ──
+total_assets       = bank_asset_value + commercial_assets_value + residential_assets_value + luxury_assets_value
+loan_income_ratio  = loan_amount / income_annum
+emi                = loan_amount / loan_term
+
+st.markdown(f"""
+<div class="derived-box">
+    ⚙️ Auto-computed features &nbsp;·&nbsp;
+    Total Assets: <span>₹{total_assets:,.0f}</span> &nbsp;·&nbsp;
+    Loan/Income Ratio: <span>{loan_income_ratio:.3f}</span> &nbsp;·&nbsp;
+    EMI: <span>₹{emi:,.0f}/mo</span>
+</div>
+""", unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────
-# ENCODE  (mirrors notebook encoding exactly)
+# ENCODE — exactly 10 features in the correct order
 # ─────────────────────────────────────────────
 def encode_inputs():
     return np.array([[
         no_of_dependents,
-        1 if education == "Graduate" else 0,   # ' Graduate'→1, ' Not Graduate'→0
-        1 if self_employed == "Yes" else 0,    # ' Yes'→1, ' No'→0
+        1 if education == "Graduate" else 0,   # Graduate→1, Not Graduate→0
+        1 if self_employed == "Yes" else 0,    # Yes→1, No→0
         income_annum,
         loan_amount,
         loan_term,
         cibil_score,
-        total_assets,                           # engineered feature
+        total_assets,                           # engineered
+        loan_income_ratio,                      # engineered
+        emi,                                    # engineered
     ]], dtype=np.float32)
 
 
 # ─────────────────────────────────────────────
-# PREDICT BUTTON
+# PREDICT
 # ─────────────────────────────────────────────
 if st.button("⚡ Predict Loan Approval"):
     if model is None or scaler is None:
@@ -290,8 +324,8 @@ if st.button("⚡ Predict Loan Approval"):
             time.sleep(0.5)
             raw           = encode_inputs()
             scaled        = scaler.transform(raw)
-            pred          = model.predict(scaled)[0]        # 1 = Approved
-            proba         = model.predict_proba(scaled)[0]  # [P(reject), P(approve)]
+            pred          = model.predict(scaled)[0]
+            proba         = model.predict_proba(scaled)[0]
             prob_approved = float(proba[1])
 
         approved   = pred == 1
@@ -321,13 +355,15 @@ if st.button("⚡ Predict Loan Approval"):
         st.markdown(f"""
         <div class="feature-summary">
             <table>
-                <tr><td>Dependants</td>       <td>{no_of_dependents}</td></tr>
-                <tr><td>Education</td>         <td>{education}</td></tr>
-                <tr><td>Self Employed</td>     <td>{self_employed}</td></tr>
-                <tr><td>Annual Income</td>     <td>₹{income_annum:,.0f}</td></tr>
-                <tr><td>Loan Amount</td>       <td>₹{loan_amount:,.0f}</td></tr>
-                <tr><td>Loan Term</td>         <td>{loan_term} months</td></tr>
-                <tr><td>CIBIL Score</td>       <td>{cibil_score}</td></tr>
-                <tr><td>Total Assets</td>      <td>₹{total_assets:,.0f}</td></tr>
+                <tr><td>Dependants</td>           <td>{no_of_dependents}</td></tr>
+                <tr><td>Education</td>             <td>{education}</td></tr>
+                <tr><td>Self Employed</td>         <td>{self_employed}</td></tr>
+                <tr><td>Annual Income</td>         <td>₹{income_annum:,.0f}</td></tr>
+                <tr><td>Loan Amount</td>           <td>₹{loan_amount:,.0f}</td></tr>
+                <tr><td>Loan Term</td>             <td>{loan_term} months</td></tr>
+                <tr><td>CIBIL Score</td>           <td>{cibil_score}</td></tr>
+                <tr><td>Total Assets</td>          <td class="derived">₹{total_assets:,.0f}</td></tr>
+                <tr><td>Loan / Income Ratio</td>   <td class="derived">{loan_income_ratio:.4f}</td></tr>
+                <tr><td>EMI</td>                   <td class="derived">₹{emi:,.0f} / month</td></tr>
             </table>
         </div>""", unsafe_allow_html=True)
