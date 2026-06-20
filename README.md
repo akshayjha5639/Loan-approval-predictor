@@ -1,5 +1,5 @@
 # 💳 LoanSense AI — Streamlit Loan Predictor
-
+Check out: https://loan-approval-predictor-with-93.streamlit.app/
 ## Project Structure
 ```
 loan_predictor/
